@@ -1,0 +1,62 @@
+#!/bin/bash
+echo "Starting Trezar pi install"
+echo "Thank me later @ my TrezarcoinAddress : Trj4W9u3Dk3TPcVy8bmkYscsRfPYBHzgnD"
+apt-get update --yes
+apt-get upgrade --yes
+apt-get update --yes
+#remove current version of openSSL
+echo "***Reomving old verision of openSSL"
+apt-get remove openssl --yes
+apt-get remove libssl-dev --yes
+#Add jessie-backport sources
+apt-get install dirmngr --yes
+apt-get -y install debian-keyring debian-archive-keyring
+apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 8B48AD6246925553
+echo "deb-src http://ftp.debian.org/debian jessie-backports main" | sudo tee /etc/apt/sources.list.d/jessie-backports.list
+apt-get update
+#build openSSL
+cd /home/pi
+sudo -u pi mkdir deps
+cd deps
+apt-get source openssl/jessie-backports
+cd openssl-1.0.2l
+./config --prefix="/home/pi/openssl/" shared enable-ec enable-ecdh enable-ecdsa -lanl -ldl
+make
+make install
+#Building BerkleyDB
+cd /home/pi
+cd deps
+sudo -u pi wget http://download.oracle.com/berkeley-db/db-4.8.30.tar.gz
+tar -xzvf db-4.8.30.tar.gz db-4.8.30
+cd db-4.8.30/build_unix/
+sudo -u pi ../dist/configure --enable-cxx --enable-shared
+make
+make install
+#Building Trezarcoin
+echo "***Start Building Trezarcoin"
+apt-get -y install qt4-qmake libqt4-dev build-essential libevent-dev libtool libboost-all-dev libminiupnpc-dev libqrencode-dev git
+cd /home/pi
+pwd
+sudo -u pi git clone https://github.com/TrezarCoin/TrezarCoin.git trezarcoin 
+cd trezarcoin
+sudo -u pi sed -i 's/-DASM //g' trezarcoin-qt.pro
+sudo -u pi qmake "USE_QRCODE=1" "USE_UPNP=1" "OPENSSL_INCLUDE_PATH=/home/pi/openssl/include" "OPENSSL_LIB_PATH=/home/pi/openssl/lib" "BDB_INCLUDE_PATH=/usr/local/BerkeleyDB.4.8/include" "BDB_LIB_PATH=/usr/local/BerkeleyDB.4.8/lib"
+sudo -u pi make
+#Adding desktop shortcut
+sudo -u pi touch /home/pi/Desktop/trezarcoin-qt.desktop
+{
+        echo '[Desktop Entry]'
+        echo 'Name=Trezarcoin-QT'
+        echo 'Comment=Trezarcoin Core GUI'
+        echo 'Exec=env LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/local/BerkeleyDB.4.8/lib:/home/pi/openssl/lib" /home/pi/trezarcoin/trezarcoin-qt'
+        echo 'Type=Application'
+        echo 'Encoding=UTF-8'  
+        echo 'Terminal=false'
+        echo 'Categories=None'
+      
+} >> /home/pi/Desktop/trezarcoin-qt.desktop
+#Make the wallet start on boot
+echo "@xdg-open /home/pi/Desktop/trezarcoin-qt.desktop" >> /home/pi/.config/lxsession/LXDE-pi/autostart
+
+reboot
+
